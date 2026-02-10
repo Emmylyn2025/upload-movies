@@ -3,16 +3,26 @@ import appError from "../utils/customError.js"
 import { pool } from "../server.js";
 import { buildQuery } from "../utils/apiFeatures.js";
 import {validate as isUuid} from "uuid";
+import uploadToCloudinary from "../cloudinary/cloudinaryHelpers.js";
+import cloudinary from "../cloudinary/cloudinary.js";
+import fs from "fs";
 
 export const addMovie = asyncHandler(async(req, res, next) => {
   const {moviename, movieduration, movieprice} = req.body;
-  const userId = req.userInfo.id
+  const userId = req.userInfo.id;
 
-  const movie = await pool.query("INSERT INTO movies(uploader_id, moviename, movieduration, movieprice) VALUES ($1, $2, $3, $4)", [userId, moviename, movieduration, movieprice]);
+  if(!req.file) return next(new appError("An image needs to be uploaded for the movie", 400));
+
+  const {imagesecureurl, imagepublicid} = await uploadToCloudinary(req.file.path);
+
+  const movie = await pool.query("INSERT INTO movies(uploader_id, moviename, movieduration, movieprice, imagesecureurl, imagepublicid) VALUES ($1, $2, $3, $4, $5, $6)", [userId, moviename, movieduration, movieprice, imagesecureurl, imagepublicid]);
   
   if(!movie) {
     return next(new appError("A movie needs to be uploaded", 400));
   }
+
+  //Delete image from local storage after uploading
+  fs.unlinkSync(req.file.path);
 
   res.status(201).json({
     message: "Uploaded",
@@ -143,6 +153,7 @@ export const updateMovies = asyncHandler(async(req, res, next) => {
 
   if(movie.rows[0].uploader_id !== userId) return next(new appError("You cannot update this movie", 401));
 
+  const allowed = ['moviname', 'movieduration', 'movieprice'];
   
   //Get the key from the reqbody
   const keys = Object.keys(fields);
@@ -152,6 +163,10 @@ export const updateMovies = asyncHandler(async(req, res, next) => {
   if(keys.length === 0) {
     return next(new appError("No fields to update", 400));
   }
+
+  keys.forEach((key) => {
+    if(!allowed.includes(key)) return next(new appError("Invalid key to update", 400)); 
+  })
   
   //Get the string out of the array
   const clause = keys.map((key, index) => `${key} = $${index + 1}`).join(", ");
@@ -182,6 +197,9 @@ export const deleteMovie = asyncHandler(async(req, res, next) => {
 
   const query = "DELETE FROM movies WHERE id = $1";
   const result = await pool.query(query, [movieId]);
+
+  //Delete image from cloudinary
+  await cloudinary.uploader.destroy(movie.rows[0].imagepublicid);
 
   if(result.rows.length === 0) {
     return next(new appError("No movie found", 404));

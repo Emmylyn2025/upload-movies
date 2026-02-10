@@ -11,11 +11,11 @@ export const registerUsers = asyncHandler(async (req, res, next) => {
   const {username, email, userpassword} = req.body;
 
   //Check if the user exist before in database
-  const before = await pool.query('SELECT * FROM users WHERE email = $1 AND username = $2', [email, username]);
+  const before = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
  
   //If the user exists before
   if(before.rows.length > 0) {
-    return next(new appError("The email or username has been used for registration", 400));
+    return next(new appError("The email has been used for registration", 400));
   }
 
   //Hash password before saving to database
