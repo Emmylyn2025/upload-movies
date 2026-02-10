@@ -18,3 +18,11 @@ export const decode = (req, res, next) => {
   req.userInfo = decoded;
   next();
 }
+
+export const admin = (req, res, next) => {
+  if(req.userInfo.role !== "admin") {
+    return next(new appError("You are not an admin, you can't check the list of all users", 401));
+  }
+
+  next();
+}

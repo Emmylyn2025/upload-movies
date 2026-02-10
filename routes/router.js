@@ -1,16 +1,22 @@
 import express from "express";
-import { registerUsers, loginUsers, allUsers, refresh, logOutUser } from "../controllers/userControllers.js";
-import { addMovie, getAllMovies } from "../controllers/dataControllers.js";
+import { registerUsers, loginUsers, allUsers, refresh, logOutUser, updateUsers, deleteUsers } from "../controllers/userControllers.js";
+import { addMovie, getAllMovies, getMoviesById, updateMovies, deleteMovie, getMpvieByUploaderId } from "../controllers/dataControllers.js";
 const router = express.Router();
-import { decode } from "../middleware/decode.js";
+import { decode, admin } from "../middleware/decode.js";
 
 router.post('/postusers', registerUsers);
 router.post('/loginusers', loginUsers);
-router.get('/allusers', decode, allUsers);
+router.get('/allusers', decode, admin, allUsers);
 router.get('/refresh', refresh);
 router.get('/refresh/logout', logOutUser);
+router.put('/updateusers/:id', decode, updateUsers);
+router.delete('/deleteusers/:id', decode, admin, deleteUsers);
 
 router.post('/addmovie', decode, addMovie);
-router.get('/allmovies', getAllMovies)
+router.get('/allmovies', decode, getAllMovies);
+router.get('/getmoviebyid/:id', decode, getMoviesById);
+router.put('/updatemovies/:id', decode, updateMovies);
+router.delete('/deletemovie/:id', decode, deleteMovie);
+router.get('/getmovieuser/:id', decode, getMpvieByUploaderId);
 
 export default router;

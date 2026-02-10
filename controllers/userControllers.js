@@ -4,7 +4,8 @@ import { generateTokens, saveRefreshInCookie } from "../utils/token.js";
 import asyncHandler from "../utils/async.js";
 import appError from "../utils/customError.js";
 import crypto from "crypto";
-import jwt from "jsonwebtoken"
+import jwt from "jsonwebtoken";
+import {validate as isUuid} from "uuid";
 
 export const registerUsers = asyncHandler(async (req, res, next) => {
   const {username, email, userpassword} = req.body;
@@ -29,7 +30,7 @@ export const registerUsers = asyncHandler(async (req, res, next) => {
   });
 });
 
-export const loginUsers = asyncHandler(async (req, res) => {
+export const loginUsers = asyncHandler(async (req, res, next) => {
 
   const {email, password} = req.body;
 
@@ -49,7 +50,8 @@ export const loginUsers = asyncHandler(async (req, res) => {
   const {accessToken, refreshToken} = generateTokens({
     id: user.rows[0].id,
     username: user.rows[0].username,
-    email: user.rows[0].email
+    email: user.rows[0].email,
+    role: user.rows[0].role
   });
 
   //Store refresh token in database
@@ -195,5 +197,67 @@ export const allUsers = asyncHandler(async(req, res, next) => {
   res.status(200).json({
     message: "Success",
     users: result.rows
+  })
+});
+
+export const updateUsers = asyncHandler(async(req, res, next) => {
+  //Get user id from params
+  const userId = req.params.id;
+  if(!isUuid(userId)) {
+    return next(new appError("Invalid UUID", 400))
+  }
+
+  const userId2 = req.userInfo.id;
+
+  if(userId !== userId2) {
+    return next(new appError("You can't update the username, because it is not yours", 401));
+  }
+  
+  const allowed = ["username"];
+  const keys = Object.keys(req.body);
+
+  //If no key or field is given
+  if(keys.length === 0){
+    return next(new appError("No fields to update", 400))
+  }
+
+  //Limit to only update username
+  keys.forEach((key) => {
+    if(!allowed.includes(key)) {
+      return next(new appError("You can only update username", 400));
+    }
+  });
+
+  const values = Object.values(req.body);
+  const clause = keys.map((key, index) =>  `${key} = $${index + 1}`).join(", ");
+
+  const query = `UPDATE users SET ${clause} WHERE id = $${keys.length + 1} RETURNING *`;
+  const result = await pool.query(query, [...values, userId]);
+
+  if(result.rows.length === 0) {
+    return next(new appError("User not found", 404));
+  }
+
+  res.status(200).json({
+    message: "user updated successfully",
+    data: result.rows[0].username
+  });
+});
+
+export const deleteUsers = asyncHandler(async(req, res, next) => {
+  const userId = req.params.id;
+
+  if(!isUuid(userId)) {
+    return next(new appError("Invalid UUID", 400))
+  }
+
+  const result = await pool.query("DELETE FROM users WHERE id = $1", [userId]);
+
+  if(result.rows.length === 0) {
+    return next(new appError("User not found", 404));
+  }
+
+  res.status(200).json({
+    message: "User deleted successfully"
   })
 });

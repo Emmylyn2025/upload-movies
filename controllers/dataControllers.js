@@ -2,6 +2,7 @@ import asyncHandler from "../utils/async.js"
 import appError from "../utils/customError.js"
 import { pool } from "../server.js";
 import { buildQuery } from "../utils/apiFeatures.js";
+import {validate as isUuid} from "uuid";
 
 export const addMovie = asyncHandler(async(req, res, next) => {
   const {moviename, movieduration, movieprice} = req.body;
@@ -20,7 +21,6 @@ export const addMovie = asyncHandler(async(req, res, next) => {
 });
 
 export const getAllMovies = asyncHandler(async(req, res, next) => {
-
   let {query, value} = buildQuery({table: 'movies', queryParams: req.query, allowedFilters: ["id", "uploader_id", "moviename", "movieduration", "movieprice", "created_at"], allowedSortFields: [ "uploader_id", "moviename", "movieduration", "movieprice", "created_at"],
   allowedFields: ["id", "uploader_id", "moviename", "movieduration", "movieprice", "created_at"]
   })
@@ -92,4 +92,103 @@ export const getAllMovies = asyncHandler(async(req, res, next) => {
     message: "Successful",
     data: allMovies.rows
   });
-})
+});
+
+export const getMoviesById = asyncHandler(async(req, res, next) => {
+  const id = req.params.id;
+  if(!isUuid(id)) {
+    return next(new appError("Invalid UUID", 400))
+  }
+  const query = await pool.query("SELECT * FROM movies WHERE id = $1", [id]);
+
+  if(query.rows.length === 0) {
+    return next(new appError("Movie not found", 404));
+  }
+
+  res.status(200).json({
+    status: "Successful",
+    data: query.rows[0]
+  });
+});
+
+export const getMpvieByUploaderId = asyncHandler(async(req, res, next) => {
+  const uploaderId = req.params.id;
+
+  if(!isUuid(uploaderId)) {
+    return next(new appError("Invalid UUID", 400));
+  }
+  const query = "SELECT movies.id AS movie_id, movies.moviename AS moviename, movies.movieduration AS movieduration, movies.movieprice AS movieprice, movies.created_at AS created_at, movies.uploader_id AS uploader_id, users.username AS uploader_username, users.email AS uploader_email FROM movies JOIN users ON uploader_id = users.id WHERE uploader_id = $1 ORDER BY moviename ASC";
+  const movie = await pool.query(query, [uploaderId]);
+  if(movie.rows === 0) {
+    return next(new appError("Movie not found", 404))
+  }
+
+  res.status(200).json({
+    message: "Request SuccessFul",
+    data: movie.rows[0]
+  });
+});
+
+export const updateMovies = asyncHandler(async(req, res, next) => {
+  const movieId = req.params.id;
+  const fields = req.body;
+  const userId = req.userInfo.id;
+
+   if(!isUuid(movieId)) {
+    return next(new appError("Invalid UUID", 400));
+  }
+
+  //Get movie before updating
+  const movie = await pool.query('SELECT * FROM movies WHERE id = $1', [movieId]);
+
+  if(movie.rows[0].uploader_id !== userId) return next(new appError("You cannot update this movie", 401));
+
+  
+  //Get the key from the reqbody
+  const keys = Object.keys(fields);
+  //get the value from the reqbody
+  const values = Object.values(fields);
+  
+  if(keys.length === 0) {
+    return next(new appError("No fields to update", 400));
+  }
+  
+  //Get the string out of the array
+  const clause = keys.map((key, index) => `${key} = $${index + 1}`).join(", ");
+  const query = `UPDATE movies SET ${clause} WHERE id = $${keys.length + 1} RETURNING *`;
+  const result = await pool.query(query, [...values, movieId]);
+
+  if(result.rows.length === 0) {
+    return next(new appError("No movie found", 404));
+  }
+  
+  res.status(200).json({
+    message: "Updated Successfully",
+    username: result.rows[0]
+  });
+});
+
+export const deleteMovie = asyncHandler(async(req, res, next) => {
+  const movieId = req.params.id;
+  const userId = req.userInfo.id;
+
+  if(!isUuid(movieId)) {
+    return next(new appError("Invalid UUID", 400));
+  }
+
+  const movie = await pool.query('SELECT * FROM movies WHERE id = $1', [movieId]);
+
+  if(movie.rows[0].uploader_id !== userId) return next(new appError("You cannot delete this movie", 401));
+
+  const query = "DELETE FROM movies WHERE id = $1";
+  const result = await pool.query(query, [movieId]);
+
+  if(result.rows.length === 0) {
+    return next(new appError("No movie found", 404));
+  }
+
+  res.status(200).json({
+    message: "Movie deleted",
+    data: result.rows[0]
+  });
+});
