@@ -6,18 +6,23 @@ import router from "./routes/router.js";
 import cookieParser from "cookie-parser";
 import appError from "./utils/customError.js";
 import globalError from "./utils/globalError.js";
+import { migrate } from "./db/migrate.js";
+
+const isProduction = process.env.NODE_ENV === "production";
 
 //Database connection
-export const pool = new Pool({
-  // host: process.env.host,
-  // port: process.env.port,
-  // user: process.env.user,
-  // password: process.env.password,
-  // database: process.env.database
-  connectionString: process.env.db_url,
-  ssl: {
-    rejectUnauthorized: false
-  }
+export const pool = new Pool(
+  isProduction ? {
+    connectionString: process.env.db_url,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  } : {
+    host: process.env.host,
+    port: process.env.port,
+    user: process.env.user,
+    password: process.env.password,
+    database: process.env.database
 });
 
 pool.connect((err, client, release) => {
@@ -41,7 +46,15 @@ app.use((req, res, next) => {
 
 app.use(globalError);
 
-app.listen(3000, () => {
+const port = process.env.port;
+
+const startServer = async() => {
+  await migrate();
+
+  app.listen(port, () => {
   console.log('server is now running')
-});
+  });
+};
+
+startServer();
 
