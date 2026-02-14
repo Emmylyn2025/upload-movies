@@ -9,11 +9,15 @@ import globalError from "./utils/globalError.js";
 
 //Database connection
 export const pool = new Pool({
-  host: process.env.host,
-  port: process.env.port,
-  user: process.env.user,
-  password: process.env.password,
-  database: process.env.database
+  // host: process.env.host,
+  // port: process.env.port,
+  // user: process.env.user,
+  // password: process.env.password,
+  // database: process.env.database
+  connectionString: process.env.db_url,
+  // ssl: {
+  //   rejectUnauthorized: false
+  // }
 });
 
 pool.connect((err, client, release) => {
