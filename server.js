@@ -15,9 +15,9 @@ export const pool = new Pool({
   // password: process.env.password,
   // database: process.env.database
   connectionString: process.env.db_url,
-  // ssl: {
-  //   rejectUnauthorized: false
-  // }
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 pool.connect((err, client, release) => {
